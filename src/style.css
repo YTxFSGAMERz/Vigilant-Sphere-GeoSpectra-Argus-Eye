@@ -962,8 +962,8 @@ input[type="reset"],
    ════════════════════════════════════════ */
 #world-clock {
     position: fixed;
-    bottom: 50px;
-    left: 12px;
+    bottom: 16px;
+    left: 400px;
     padding: 8px 12px;
     display: flex;
     gap: 12px;
