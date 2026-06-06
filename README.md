@@ -4,11 +4,11 @@
 
 **~Made by Farhan FS**
 
-[![Live Demo](https://img.shields.io/badge/🔴_LIVE-DEMO-00d4aa?style=for-the-badge&labelColor=0a0a0a)](https://vigilant-sphere-geospectra-argus-eye.netlify.app/)
+[![Live Demo](https://img.shields.io/badge/🔴_LIVE-DEMO-00d4aa?style=for-the-badge&labelColor=0a0a0a)](https://vigilant-sphere-geospectra-argus-eye.vercel.app/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-ffaa00?style=for-the-badge&labelColor=0a0a0a)](./LICENSE)
 [![Built with Vite](https://img.shields.io/badge/Built_with-Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white&labelColor=0a0a0a)](https://vite.dev)
 [![Powered by Cesium](https://img.shields.io/badge/Powered_by-Cesium.js-6CADDF?style=for-the-badge&logo=cesium&logoColor=white&labelColor=0a0a0a)](https://cesium.com)
-[![Deployed on Netlify](https://img.shields.io/badge/Deployed_on-Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white&labelColor=0a0a0a)](https://www.netlify.com)
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed_on-Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white&labelColor=0a0a0a)](https://vercel.com)
 
 <br/>
 
@@ -27,7 +27,7 @@
 | **Vite** | Lightning-fast build tool and dev server |
 | **Vanilla JS** | Zero-dependency, modular ES6+ application architecture |
 | **Custom CSS** | 1100+ lines of handcrafted HUD-themed styling |
-| **Netlify** | Production deployment with automatic CI/CD |
+| **Vercel** | Production deployment with automatic CI/CD |
 
 ---
 
@@ -197,7 +197,6 @@ Five-timezone operational clock displaying real-time local times:
 ```
 Vigilant-Sphere-GeoSpectra-Argus-Eye/
 ├── index.html              # Main application shell (380 lines)
-├── netlify.toml            # Netlify deployment config
 ├── package.json            # Vite build configuration
 ├── public/
 │   └── cover-image.png     # Open Graph preview image
@@ -248,9 +247,9 @@ npm run preview  # Preview production build locally
 ## 🌐 Live Deployment
 
 The application is live at:
-**[https://vigilant-sphere-geospectra-argus-eye.netlify.app/](https://vigilant-sphere-geospectra-argus-eye.netlify.app/)**
+**[https://vigilant-sphere-geospectra-argus-eye.vercel.app/](https://vigilant-sphere-geospectra-argus-eye.vercel.app/)**
 
-Deployed automatically via Netlify with `npm run build` → `dist/` directory.
+Deployed automatically via Vercel with `npm run build` → `dist/` directory.
 
 ---
 
