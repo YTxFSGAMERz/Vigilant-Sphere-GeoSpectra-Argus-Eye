@@ -12,8 +12,8 @@ class AppController {
     this.state = {
       layers: {
         flights: true, satellites: true, earthquakes: true, weather: true, cctv: true,
-        nuclear: false, military: false, conflicts: false,
-        hotspots: false, waterways: false, cables: false,
+        nuclear: false, military: false, conflicts: true,
+        hotspots: true, waterways: false, cables: false,
         naturalEvents: false, wildfires: false, weatherAlerts: false,
         spaceports: false, economic: false
       },
