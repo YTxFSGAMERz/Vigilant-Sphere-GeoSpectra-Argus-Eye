@@ -51,12 +51,231 @@ export class Terra5Globe {
 
         const initProvider = async () => {
             try {
-                const provider = await Cesium.ArcGisMapServerImageryProvider.fromUrl('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer');
+                const imagery = await Cesium.ArcGisMapServerImageryProvider.fromUrl('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer');
+                // const labels = await Cesium.ArcGisMapServerImageryProvider.fromUrl('https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer');
                 if (this.viewer && this.viewer.imageryLayers) {
-                    this.viewer.imageryLayers.addImageryProvider(provider);
+                    this.viewer.imageryLayers.addImageryProvider(imagery);
+                    // this.viewer.imageryLayers.addImageryProvider(labels); // Hide default country labels (including Israel)
                 }
+
+                // Load Global Countries Borders (Custom Vector)
+                const countriesPromise = Cesium.GeoJsonDataSource.load('/countries.geojson', {
+                    stroke: Cesium.Color.fromCssColorString('#00ff00').withAlpha(0.4),
+                    fill: Cesium.Color.TRANSPARENT,
+                    strokeWidth: 2,
+                    clampToGround: true
+                });
+                
+                const countriesDS = await countriesPromise;
+                
+                const labeledCountries = new Set();
+
+                // Add center labels for each country to completely replace ArcGIS base labels
+                countriesDS.entities.values.forEach(entity => {
+                    if (entity.polygon) {
+                        entity.polygon.outline = true;
+                        entity.polygon.outlineColor = Cesium.Color.fromCssColorString('#00ff00').withAlpha(0.8);
+                        entity.polygon.material = Cesium.Color.fromCssColorString('#002200').withAlpha(0.01);
+                        
+                        // Explicitly add polylines for reliable borders
+                        if (entity.polygon.hierarchy) {
+                            const hierarchy = entity.polygon.hierarchy.getValue(Cesium.JulianDate.now());
+                            if (hierarchy && hierarchy.positions) {
+                                entity.polyline = new Cesium.PolylineGraphics({
+                                    positions: hierarchy.positions,
+                                    width: 2,
+                                    material: Cesium.Color.fromCssColorString('#00ff00').withAlpha(0.5),
+                                    clampToGround: true
+                                });
+                            }
+                        }
+
+                        let center;
+                        if (entity.properties && entity.properties.LABEL_X && entity.properties.LABEL_Y) {
+                           center = Cesium.Cartesian3.fromDegrees(entity.properties.LABEL_X.getValue(), entity.properties.LABEL_Y.getValue());
+                        } else if (entity.polygon.hierarchy) {
+                           // Fallback for centroid
+                           center = Cesium.BoundingSphere.fromPoints(entity.polygon.hierarchy.getValue(Cesium.JulianDate.now()).positions).center;
+                        }
+
+                        let countryName = '';
+                        if (entity.properties) {
+                            countryName = entity.properties.NAME ? entity.properties.NAME.getValue() : '';
+                        }
+                        
+                        if (countryName && countryName !== '' && !labeledCountries.has(countryName) && center) {
+                            labeledCountries.add(countryName);
+                            countriesDS.entities.add({
+                                position: center,
+                                label: {
+                                    text: countryName,
+                                    font: 'bold 18px "Share Tech Mono", monospace',
+                                    fillColor: Cesium.Color.fromCssColorString('#00FFFF').withAlpha(0.9),
+                                    outlineColor: Cesium.Color.BLACK,
+                                    outlineWidth: 3,
+                                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                                    verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                                    horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+                                    distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 8000000)
+                                }
+                            });
+                        }
+                    }
+                });
+
+                this.viewer.dataSources.add(countriesDS);
+                
+                // Load States and Provinces
+                try {
+                    const statesPromise = Cesium.GeoJsonDataSource.load('/states.geojson', {
+                        stroke: Cesium.Color.fromCssColorString('#00ff00').withAlpha(0.2),
+                        fill: Cesium.Color.TRANSPARENT,
+                        strokeWidth: 1,
+                        clampToGround: true
+                    });
+                    const statesDS = await statesPromise;
+                    const labeledStates = new Set();
+                    statesDS.entities.values.forEach(entity => {
+                        if (entity.polygon) {
+                            entity.polygon.outline = true;
+                            entity.polygon.outlineColor = Cesium.Color.fromCssColorString('#00ff00').withAlpha(0.2);
+                            entity.polygon.material = Cesium.Color.fromCssColorString('#002200').withAlpha(0.01);
+                            
+                            if (entity.polygon.hierarchy) {
+                                const hierarchy = entity.polygon.hierarchy.getValue(Cesium.JulianDate.now());
+                                if (hierarchy && hierarchy.positions) {
+                                    entity.polyline = new Cesium.PolylineGraphics({
+                                        positions: hierarchy.positions,
+                                        width: 1,
+                                        material: Cesium.Color.fromCssColorString('#00ff00').withAlpha(0.2),
+                                        clampToGround: true
+                                    });
+                                }
+                            }
+
+                            let center;
+                            if (entity.properties && entity.properties.LABEL_X && entity.properties.LABEL_Y) {
+                               center = Cesium.Cartesian3.fromDegrees(entity.properties.LABEL_X.getValue(), entity.properties.LABEL_Y.getValue());
+                            }
+
+                            let stateName = '';
+                            if (entity.properties) {
+                                stateName = entity.properties.name ? entity.properties.name.getValue() : (entity.properties.NAME ? entity.properties.NAME.getValue() : '');
+                            }
+                            
+                            if (stateName && stateName !== '' && !labeledStates.has(stateName) && center) {
+                                labeledStates.add(stateName);
+                                statesDS.entities.add({
+                                    position: center,
+                                    label: {
+                                        text: stateName,
+                                        font: '13px "Share Tech Mono", monospace',
+                                        fillColor: Cesium.Color.fromCssColorString('#B0BEC5').withAlpha(0.95),
+                                        outlineColor: Cesium.Color.BLACK,
+                                        outlineWidth: 2,
+                                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                                        verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                                        horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+                                        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 8000000)
+                                    }
+                                });
+                            }
+                        }
+                    });
+                    this.viewer.dataSources.add(statesDS);
+                } catch(e) {
+                    console.log('States not loaded yet');
+                }
+
+                // Load Global Populated Places (Cities)
+                try {
+                    const citiesGlobalPromise = Cesium.GeoJsonDataSource.load('/cities.geojson');
+                    const citiesGlobalDS = await citiesGlobalPromise;
+
+                    citiesGlobalDS.entities.values.forEach(entity => {
+                        // Hide default point completely
+                        if (entity.billboard) { entity.billboard.show = false; }
+                        if (entity.point) { entity.point.show = false; }
+
+                        if (entity.position) {
+                            let scalerank = entity.properties && entity.properties.SCALERANK ? entity.properties.SCALERANK.getValue() : 10;
+                            let cityName = entity.properties && entity.properties.NAME ? entity.properties.NAME.getValue() : '';
+                            
+                            // Dynamic city rendering based on global importance
+                            if (cityName && scalerank <= 8) {
+                                let fontSize = '10px';
+                                let maxDist = 1500000;
+                                
+                                if (scalerank <= 2) {
+                                    fontSize = '13px';
+                                    maxDist = 15000000;
+                                } else if (scalerank <= 4) {
+                                    fontSize = '12px';
+                                    maxDist = 6000000;
+                                } else if (scalerank <= 6) {
+                                    fontSize = '11px';
+                                    maxDist = 3000000;
+                                }
+
+                                entity.label = new Cesium.LabelGraphics({
+                                    text: cityName,
+                                    font: `${fontSize} "Share Tech Mono", monospace`,
+                                    fillColor: Cesium.Color.WHITE.withAlpha(0.9),
+                                    outlineColor: Cesium.Color.BLACK,
+                                    outlineWidth: 2,
+                                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                                    verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                                    horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+                                    distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, maxDist)
+                                });
+                            }
+                        }
+                    });
+                    this.viewer.dataSources.add(citiesGlobalDS);
+                } catch(e) {
+                    console.log('Cities not loaded yet');
+                }
+                
+                // Load Custom City Markers with Arabic Translations
+                const citiesDS = new Cesium.CustomDataSource('cities_arabic');
+                const cities = [
+                    { name: 'القدس/Al Quds', lon: 35.2137, lat: 31.7683 },
+                    { name: 'حيفا/Haifa', lon: 34.9896, lat: 32.7940 },
+                    { name: 'تل أبيب/Tel Aviv', lon: 34.7818, lat: 32.0853 },
+                    { name: 'غزة/Gaza', lon: 34.4668, lat: 31.5017 },
+                    { name: 'أريحا/Jericho', lon: 35.4599, lat: 31.8628 },
+                    { name: 'نابلس/Nablus', lon: 35.2620, lat: 32.2211 },
+                    { name: 'رام الله/Ramallah', lon: 35.2016, lat: 31.9038 }
+                ];
+
+                cities.forEach(city => {
+                    citiesDS.entities.add({
+                        position: Cesium.Cartesian3.fromDegrees(city.lon, city.lat, 1000),
+                        point: {
+                            pixelSize: 6,
+                            color: Cesium.Color.fromCssColorString('#00ff00'),
+                            outlineColor: Cesium.Color.BLACK,
+                            outlineWidth: 2,
+                            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 3000000)
+                        },
+                        label: {
+                            text: city.name,
+                            font: 'bold 14px "Share Tech Mono", monospace',
+                            fillColor: Cesium.Color.WHITE,
+                            outlineColor: Cesium.Color.BLACK,
+                            outlineWidth: 4,
+                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                            pixelOffset: new Cesium.Cartesian2(0, -10),
+                            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 3000000)
+                        }
+                    });
+                });
+                
+                this.viewer.dataSources.add(citiesDS);
+
             } catch (e) {
-                console.warn('Failed to load ArcGIS map:', e);
+                console.warn('Failed to load map data:', e);
             }
         };
         initProvider();
