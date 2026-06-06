@@ -19,14 +19,26 @@ export const MAP_DATA = {
             description: 'Full-scale Russian invasion of Ukraine.'
         },
         {
-            id: 'gaza',
-            name: 'Gaza Conflict',
-            coords: [[34, 32], [35, 32], [35, 31], [34, 31]],
-            description: 'Israeli military operations in Gaza.'
+            id: 'palestine_gaza',
+            name: 'Gaza Strip',
+            coords: [[34.2, 31.2], [34.5, 31.6], [34.6, 31.6], [34.3, 31.2], [34.2, 31.2]],
+            description: 'Palestine: Gaza Strip under severe military siege and bombardment.'
+        },
+        {
+            id: 'palestine_westbank',
+            name: 'West Bank',
+            coords: [[35.0, 31.4], [35.5, 31.5], [35.6, 32.2], [35.2, 32.5], [34.9, 32.3], [35.0, 31.4]],
+            description: 'Palestine: West Bank facing illegal settlements and military occupation.'
+        },
+        {
+            id: 'occupied_palestine',
+            name: 'Occupied Palestine',
+            coords: [[34.2, 31.2], [34.2, 33.1], [35.6, 33.3], [35.6, 32.2], [35.0, 31.4], [35.0, 29.5], [34.9, 29.5], [34.2, 31.2]],
+            description: 'Historic Palestine (1948 borders).'
         },
         {
             id: 'south_lebanon',
-            name: 'Israel-Lebanon Border',
+            name: 'Occupied Palestine-Lebanon Border',
             coords: [[35.1, 33.0], [35.1, 33.4], [35.8, 33.4], [35.8, 33.0]],
             description: 'Cross-border artillery and rocket fire.'
         },
@@ -85,7 +97,6 @@ export const MAP_DATA = {
         { id: 'natanz', name: 'Natanz', lat: 33.72, lon: 51.73, type: 'enrichment' },
         { id: 'fordow', name: 'Fordow', lat: 34.88, lon: 51.0, type: 'enrichment' },
         { id: 'yongbyon', name: 'Yongbyon', lat: 39.8, lon: 125.75, type: 'weapons' },
-        { id: 'dimona', name: 'Dimona', lat: 31.0, lon: 35.15, type: 'weapons' },
         { id: 'pakistan_kahuta', name: 'Kahuta', lat: 33.59, lon: 73.40, type: 'enrichment' },
         { id: 'pakistan_khushab', name: 'Khushab', lat: 32.02, lon: 72.22, type: 'weapons' }
     ],
@@ -134,6 +145,15 @@ export const MAP_DATA = {
     ],
 
     INTEL_HOTSPOTS: [
+        { id: 'al_quds', name: 'Al-Quds (Jerusalem)', lat: 31.776, lon: 35.235, description: 'Capital of Palestine. Site of Al-Aqsa Mosque.', level: 'high' },
+        { id: 'gaza_city', name: 'Gaza City', lat: 31.5, lon: 34.466, description: 'Heart of Gaza Strip. Subject to severe military siege.', level: 'high' },
+        { id: 'rafah', name: 'Rafah', lat: 31.28, lon: 34.24, description: 'Border city, critical crossing point for humanitarian aid.', level: 'high' },
+        { id: 'ramallah', name: 'Ramallah', lat: 31.9, lon: 35.2, description: 'Administrative center in the West Bank.', level: 'elevated' },
+        { id: 'haifa', name: 'Haifa (Occupied Palestine)', lat: 32.81, lon: 34.99, description: 'Historic Palestinian port city.', level: 'elevated' },
+        { id: 'jaffa', name: 'Jaffa (Occupied Palestine)', lat: 32.05, lon: 34.75, description: 'Ancient Palestinian port city.', level: 'elevated' },
+        { id: 'jenin', name: 'Jenin', lat: 32.46, lon: 35.3, description: 'Major refugee camp and resistance hub in West Bank.', level: 'high' },
+        { id: 'hebron', name: 'Al-Khalil (Hebron)', lat: 31.53, lon: 35.09, description: 'Historic Palestinian city facing extensive settlement expansion.', level: 'high' },
+        { id: 'nablus', name: 'Nablus', lat: 32.22, lon: 35.26, description: 'Cultural and economic center of Northern West Bank.', level: 'elevated' },
         { id: 'sahel', name: 'Sahel', lat: 14.0, lon: -1.0, description: 'Insurgency, military coups, Wagner presence', level: 'high' },
         { id: 'horn_africa', name: 'Horn of Africa', lat: 10.0, lon: 49.0, description: 'Piracy, Al-Shabaab, Somalia crisis', level: 'high' },
         { id: 'dc', name: 'Washington D.C.', lat: 38.9, lon: -77.0, description: 'Pentagon, CIA, NSA — key policy center', level: 'medium' },
