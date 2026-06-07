@@ -2,11 +2,10 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   build: {
-    chunkSizeWarningLimit: 2000, // Cesium is huge
+    chunkSizeWarningLimit: 2000,
     rollupOptions: {
       output: {
         manualChunks: {
-          cesium: ['cesium'],
           turf: ['@turf/turf']
         }
       }
