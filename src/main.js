@@ -4,6 +4,7 @@ import { APIService } from './services/api.js';
 import { MockService } from './services/mock.js';
 import { MAP_DATA } from './services/mapData.js';
 import { signalAggregator } from './services/signalAggregator.js';
+import { inject } from '@vercel/analytics';
 
 class AppController {
   constructor() {
@@ -795,3 +796,6 @@ const app = new AppController();
 document.addEventListener('DOMContentLoaded', () => {
   app.init();
 });
+
+// Initialize Vercel Web Analytics
+inject();
