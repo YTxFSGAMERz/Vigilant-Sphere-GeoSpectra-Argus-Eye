@@ -58,183 +58,142 @@ export class Terra5Globe {
                     // this.viewer.imageryLayers.addImageryProvider(labels); // Hide default country labels (including Israel)
                 }
 
-                // Load Global Countries Borders (Custom Vector)
-                const countriesPromise = Cesium.GeoJsonDataSource.load('/countries.geojson', {
-                    stroke: Cesium.Color.fromCssColorString('#00ff00').withAlpha(0.4),
-                    fill: Cesium.Color.TRANSPARENT,
-                    strokeWidth: 2,
-                    clampToGround: true
-                });
-                
-                const countriesDS = await countriesPromise;
-                
-                const labeledCountries = new Set();
-
-                // Add center labels for each country to completely replace ArcGIS base labels
-                countriesDS.entities.values.forEach(entity => {
-                    if (entity.polygon) {
-                        entity.polygon.outline = true;
-                        entity.polygon.outlineColor = Cesium.Color.fromCssColorString('#00ff00').withAlpha(0.8);
-                        entity.polygon.material = Cesium.Color.fromCssColorString('#002200').withAlpha(0.01);
-                        
-                        // Explicitly add polylines for reliable borders
-                        if (entity.polygon.hierarchy) {
-                            const hierarchy = entity.polygon.hierarchy.getValue(Cesium.JulianDate.now());
-                            if (hierarchy && hierarchy.positions) {
-                                entity.polyline = new Cesium.PolylineGraphics({
-                                    positions: hierarchy.positions,
-                                    width: 2,
-                                    material: Cesium.Color.fromCssColorString('#00ff00').withAlpha(0.5),
-                                    clampToGround: true
-                                });
-                            }
-                        }
-
-                        let center;
-                        if (entity.properties && entity.properties.LABEL_X && entity.properties.LABEL_Y) {
-                           center = Cesium.Cartesian3.fromDegrees(entity.properties.LABEL_X.getValue(), entity.properties.LABEL_Y.getValue());
-                        } else if (entity.polygon.hierarchy) {
-                           // Fallback for centroid
-                           center = Cesium.BoundingSphere.fromPoints(entity.polygon.hierarchy.getValue(Cesium.JulianDate.now()).positions).center;
-                        }
-
-                        let countryName = '';
-                        if (entity.properties) {
-                            countryName = entity.properties.NAME ? entity.properties.NAME.getValue() : '';
-                        }
-                        
-                        if (countryName && countryName !== '' && !labeledCountries.has(countryName) && center) {
-                            labeledCountries.add(countryName);
-                            countriesDS.entities.add({
-                                position: center,
-                                label: {
-                                    text: countryName,
-                                    font: 'bold 18px "Share Tech Mono", monospace',
-                                    fillColor: Cesium.Color.fromCssColorString('#00FFFF').withAlpha(0.9),
-                                    outlineColor: Cesium.Color.BLACK,
-                                    outlineWidth: 3,
-                                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                                    verticalOrigin: Cesium.VerticalOrigin.CENTER,
-                                    horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-                                    distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 8000000)
-                                }
-                            });
-                        }
-                    }
-                });
-
-                this.viewer.dataSources.add(countriesDS);
-                
-                // Load States and Provinces
+                // Load OSM 3D Buildings for high-detail street view
                 try {
-                    const statesPromise = Cesium.GeoJsonDataSource.load('/states.geojson', {
-                        stroke: Cesium.Color.fromCssColorString('#00ff00').withAlpha(0.2),
-                        fill: Cesium.Color.TRANSPARENT,
-                        strokeWidth: 1,
-                        clampToGround: true
-                    });
-                    const statesDS = await statesPromise;
-                    const labeledStates = new Set();
-                    statesDS.entities.values.forEach(entity => {
-                        if (entity.polygon) {
-                            entity.polygon.outline = true;
-                            entity.polygon.outlineColor = Cesium.Color.fromCssColorString('#00ff00').withAlpha(0.2);
-                            entity.polygon.material = Cesium.Color.fromCssColorString('#002200').withAlpha(0.01);
+                    const buildings = await Cesium.createOsmBuildingsAsync();
+                    this.viewer.scene.primitives.add(buildings);
+                } catch (e) {
+                    console.log('OSM Buildings could not load:', e);
+                }
+
+                // Helper to load GeoJSON natively into WebGL Primitives for extreme performance
+                const loadGeoJsonAsPrimitives = async (url, options) => {
+                    try {
+                        const res = await fetch(url);
+                        const data = await res.json();
+                        
+                        const polylineCollection = new Cesium.PolylineCollection();
+                        const labelCollection = new Cesium.LabelCollection();
+                        
+                        const material = options.color ? Cesium.Material.fromType('Color', {
+                            color: options.color
+                        }) : null;
+
+                        const labeledNames = new Set();
+
+                        data.features.forEach(f => {
+                            if (!f.geometry) return;
                             
-                            if (entity.polygon.hierarchy) {
-                                const hierarchy = entity.polygon.hierarchy.getValue(Cesium.JulianDate.now());
-                                if (hierarchy && hierarchy.positions) {
-                                    entity.polyline = new Cesium.PolylineGraphics({
-                                        positions: hierarchy.positions,
-                                        width: 1,
-                                        material: Cesium.Color.fromCssColorString('#00ff00').withAlpha(0.2),
-                                        clampToGround: true
+                            // Parse Geometries into WebGL Polylines
+                            const addRing = (ring) => {
+                                const flatCoords = [];
+                                for (let i = 0; i < ring.length; i++) {
+                                    flatCoords.push(ring[i][0], ring[i][1]);
+                                }
+                                if (flatCoords.length >= 4 && material) {
+                                    polylineCollection.add({
+                                        positions: Cesium.Cartesian3.fromDegreesArray(flatCoords),
+                                        width: options.width || 2,
+                                        material: material
                                     });
                                 }
+                            };
+
+                            if (f.geometry.type === 'Polygon') {
+                                f.geometry.coordinates.forEach(addRing);
+                            } else if (f.geometry.type === 'MultiPolygon') {
+                                f.geometry.coordinates.forEach(polygon => polygon.forEach(addRing));
+                            } else if (f.geometry.type === 'LineString') {
+                                addRing(f.geometry.coordinates);
+                            } else if (f.geometry.type === 'MultiLineString') {
+                                f.geometry.coordinates.forEach(addRing);
                             }
 
-                            let center;
-                            if (entity.properties && entity.properties.LABEL_X && entity.properties.LABEL_Y) {
-                               center = Cesium.Cartesian3.fromDegrees(entity.properties.LABEL_X.getValue(), entity.properties.LABEL_Y.getValue());
-                            }
-
-                            let stateName = '';
-                            if (entity.properties) {
-                                stateName = entity.properties.name ? entity.properties.name.getValue() : (entity.properties.NAME ? entity.properties.NAME.getValue() : '');
-                            }
-                            
-                            if (stateName && stateName !== '' && !labeledStates.has(stateName) && center) {
-                                labeledStates.add(stateName);
-                                statesDS.entities.add({
-                                    position: center,
-                                    label: {
-                                        text: stateName,
-                                        font: '13px "Share Tech Mono", monospace',
-                                        fillColor: Cesium.Color.fromCssColorString('#B0BEC5').withAlpha(0.95),
-                                        outlineColor: Cesium.Color.BLACK,
-                                        outlineWidth: 2,
-                                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                                        verticalOrigin: Cesium.VerticalOrigin.CENTER,
-                                        horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-                                        distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 8000000)
+                            // Parse Labels into WebGL LabelCollection
+                            if (options.hasLabels && f.properties) {
+                                const name = f.properties.NAME || f.properties.name || f.properties.name_en;
+                                if (name && !labeledNames.has(name)) {
+                                    let center;
+                                    if (f.properties.LABEL_X !== undefined && f.properties.LABEL_Y !== undefined) {
+                                        center = Cesium.Cartesian3.fromDegrees(f.properties.LABEL_X, f.properties.LABEL_Y);
+                                    } else if (f.geometry.type === 'Point') {
+                                        center = Cesium.Cartesian3.fromDegrees(f.geometry.coordinates[0], f.geometry.coordinates[1]);
                                     }
-                                });
-                            }
-                        }
-                    });
-                    this.viewer.dataSources.add(statesDS);
-                } catch(e) {
-                    console.log('States not loaded yet');
-                }
+                                    
+                                    if (center) {
+                                        labeledNames.add(name);
+                                        
+                                        if (options.isCities) {
+                                            const scalerank = f.properties.SCALERANK !== undefined ? f.properties.SCALERANK : 10;
+                                            if (scalerank <= 8) {
+                                                let fontSize = '10px';
+                                                let maxDist = 1500000;
+                                                if (scalerank <= 2) { fontSize = '13px'; maxDist = 15000000; }
+                                                else if (scalerank <= 4) { fontSize = '12px'; maxDist = 6000000; }
+                                                else if (scalerank <= 6) { fontSize = '11px'; maxDist = 3000000; }
 
-                // Load Global Populated Places (Cities)
-                try {
-                    const citiesGlobalPromise = Cesium.GeoJsonDataSource.load('/cities.geojson');
-                    const citiesGlobalDS = await citiesGlobalPromise;
-
-                    citiesGlobalDS.entities.values.forEach(entity => {
-                        // Hide default point completely
-                        if (entity.billboard) { entity.billboard.show = false; }
-                        if (entity.point) { entity.point.show = false; }
-
-                        if (entity.position) {
-                            let scalerank = entity.properties && entity.properties.SCALERANK ? entity.properties.SCALERANK.getValue() : 10;
-                            let cityName = entity.properties && entity.properties.NAME ? entity.properties.NAME.getValue() : '';
-                            
-                            // Dynamic city rendering based on global importance
-                            if (cityName && scalerank <= 8) {
-                                let fontSize = '10px';
-                                let maxDist = 1500000;
-                                
-                                if (scalerank <= 2) {
-                                    fontSize = '13px';
-                                    maxDist = 15000000;
-                                } else if (scalerank <= 4) {
-                                    fontSize = '12px';
-                                    maxDist = 6000000;
-                                } else if (scalerank <= 6) {
-                                    fontSize = '11px';
-                                    maxDist = 3000000;
+                                                labelCollection.add({
+                                                    position: center,
+                                                    text: name,
+                                                    font: `${fontSize} "Share Tech Mono", monospace`,
+                                                    fillColor: Cesium.Color.WHITE.withAlpha(0.9),
+                                                    outlineColor: Cesium.Color.BLACK,
+                                                    outlineWidth: 2,
+                                                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                                                    verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                                                    horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+                                                    distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, maxDist)
+                                                });
+                                            }
+                                        } else {
+                                            labelCollection.add({
+                                                position: center,
+                                                text: name,
+                                                font: options.labelFont,
+                                                fillColor: options.labelColor,
+                                                outlineColor: Cesium.Color.BLACK,
+                                                outlineWidth: options.labelOutlineWidth || 2,
+                                                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                                                verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                                                horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+                                                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 8000000)
+                                            });
+                                        }
+                                    }
                                 }
-
-                                entity.label = new Cesium.LabelGraphics({
-                                    text: cityName,
-                                    font: `${fontSize} "Share Tech Mono", monospace`,
-                                    fillColor: Cesium.Color.WHITE.withAlpha(0.9),
-                                    outlineColor: Cesium.Color.BLACK,
-                                    outlineWidth: 2,
-                                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                                    verticalOrigin: Cesium.VerticalOrigin.CENTER,
-                                    horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-                                    distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, maxDist)
-                                });
                             }
-                        }
-                    });
-                    this.viewer.dataSources.add(citiesGlobalDS);
-                } catch(e) {
-                    console.log('Cities not loaded yet');
-                }
+                        });
+
+                        this.viewer.scene.primitives.add(polylineCollection);
+                        this.viewer.scene.primitives.add(labelCollection);
+                    } catch (e) {
+                        console.error('Error loading primitive data', url, e);
+                    }
+                };
+
+                // Load optimized data sources
+                loadGeoJsonAsPrimitives('/countries.geojson', {
+                    color: Cesium.Color.fromCssColorString('#00ff00').withAlpha(0.5),
+                    width: 2,
+                    hasLabels: true,
+                    labelFont: 'bold 18px "Share Tech Mono", monospace',
+                    labelColor: Cesium.Color.fromCssColorString('#00FFFF').withAlpha(0.9),
+                    labelOutlineWidth: 3
+                });
+
+                loadGeoJsonAsPrimitives('/states.geojson', {
+                    color: Cesium.Color.fromCssColorString('#00ff00').withAlpha(0.2),
+                    width: 1,
+                    hasLabels: true,
+                    labelFont: '13px "Share Tech Mono", monospace',
+                    labelColor: Cesium.Color.fromCssColorString('#B0BEC5').withAlpha(0.95),
+                    labelOutlineWidth: 2
+                });
+
+                loadGeoJsonAsPrimitives('/cities.geojson', {
+                    hasLabels: true,
+                    isCities: true
+                });
                 
                 // Load Custom City Markers with Arabic Translations
                 const citiesDS = new Cesium.CustomDataSource('cities_arabic');
