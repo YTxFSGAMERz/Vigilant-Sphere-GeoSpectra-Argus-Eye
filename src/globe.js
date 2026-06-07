@@ -74,6 +74,7 @@ export class Terra5Globe {
                         
                         const polylineCollection = new Cesium.PolylineCollection();
                         const labelCollection = new Cesium.LabelCollection();
+                        const pointCollection = new Cesium.PointPrimitiveCollection();
                         
                         const material = options.color ? Cesium.Material.fromType('Color', {
                             color: options.color
@@ -141,30 +142,37 @@ export class Terra5Globe {
                                         if (options.isCities) {
                                             const scalerank = f.properties.SCALERANK !== undefined ? f.properties.SCALERANK : 10;
                                             if (scalerank <= 8) {
-                                                let fontSize = '14px';
                                                 let maxDist = 800000;
                                                 
                                                 if (scalerank <= 2) { 
-                                                    fontSize = '24px bold'; 
                                                     maxDist = 6000000;
                                                 } else if (scalerank <= 4) { 
-                                                    fontSize = '18px bold'; 
                                                     maxDist = 3000000;
                                                 } else if (scalerank <= 6) { 
-                                                    fontSize = '16px'; 
                                                     maxDist = 1500000;
                                                 }
+
+                                                pointCollection.add({
+                                                    position: center,
+                                                    pixelSize: 6,
+                                                    color: Cesium.Color.fromCssColorString('#00ff00'),
+                                                    outlineColor: Cesium.Color.BLACK,
+                                                    outlineWidth: 2,
+                                                    distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, maxDist),
+                                                    translucencyByDistance: new Cesium.NearFarScalar(maxDist * 0.8, 1.0, maxDist, 0.0)
+                                                });
 
                                                 labelCollection.add({
                                                     position: center,
                                                     text: name,
-                                                    font: `${fontSize} "Share Tech Mono", monospace`,
+                                                    font: `bold 18px "Share Tech Mono", monospace`,
                                                     fillColor: Cesium.Color.WHITE.withAlpha(0.9),
                                                     outlineColor: Cesium.Color.BLACK,
                                                     outlineWidth: 3,
                                                     style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                                                    verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                                                    verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
                                                     horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
+                                                    pixelOffset: new Cesium.Cartesian2(0, -10),
                                                     distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, maxDist),
                                                     translucencyByDistance: new Cesium.NearFarScalar(maxDist * 0.8, 1.0, maxDist, 0.0),
                                                     scaleByDistance: new Cesium.NearFarScalar(1.0e3, 1.2, maxDist, 0.6)
@@ -192,6 +200,7 @@ export class Terra5Globe {
 
                         this.viewer.scene.primitives.add(polylineCollection);
                         this.viewer.scene.primitives.add(labelCollection);
+                        this.viewer.scene.primitives.add(pointCollection);
                     } catch (e) {
                         console.error('Error loading primitive data', url, e);
                     }
