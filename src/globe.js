@@ -118,6 +118,21 @@ export class Terra5Globe {
                                         center = Cesium.Cartesian3.fromDegrees(f.properties.LABEL_X, f.properties.LABEL_Y);
                                     } else if (f.geometry.type === 'Point') {
                                         center = Cesium.Cartesian3.fromDegrees(f.geometry.coordinates[0], f.geometry.coordinates[1]);
+                                    } else if (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon') {
+                                        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                                        const updateBounds = (ring) => {
+                                            for (let i = 0; i < ring.length; i++) {
+                                                const x = ring[i][0], y = ring[i][1];
+                                                if (x < minX) minX = x; if (x > maxX) maxX = x;
+                                                if (y < minY) minY = y; if (y > maxY) maxY = y;
+                                            }
+                                        };
+                                        if (f.geometry.type === 'Polygon') {
+                                            f.geometry.coordinates.forEach(updateBounds);
+                                        } else {
+                                            f.geometry.coordinates.forEach(polygon => polygon.forEach(updateBounds));
+                                        }
+                                        center = Cesium.Cartesian3.fromDegrees((minX + maxX) / 2, (minY + maxY) / 2);
                                     }
                                     
                                     if (center) {
@@ -126,11 +141,19 @@ export class Terra5Globe {
                                         if (options.isCities) {
                                             const scalerank = f.properties.SCALERANK !== undefined ? f.properties.SCALERANK : 10;
                                             if (scalerank <= 8) {
-                                                let fontSize = '10px';
-                                                let maxDist = 1500000;
-                                                if (scalerank <= 2) { fontSize = '13px'; maxDist = 15000000; }
-                                                else if (scalerank <= 4) { fontSize = '12px'; maxDist = 6000000; }
-                                                else if (scalerank <= 6) { fontSize = '11px'; maxDist = 3000000; }
+                                                let fontSize = '14px';
+                                                let maxDist = 800000;
+                                                
+                                                if (scalerank <= 2) { 
+                                                    fontSize = '24px bold'; 
+                                                    maxDist = 6000000;
+                                                } else if (scalerank <= 4) { 
+                                                    fontSize = '18px bold'; 
+                                                    maxDist = 3000000;
+                                                } else if (scalerank <= 6) { 
+                                                    fontSize = '16px'; 
+                                                    maxDist = 1500000;
+                                                }
 
                                                 labelCollection.add({
                                                     position: center,
@@ -138,11 +161,13 @@ export class Terra5Globe {
                                                     font: `${fontSize} "Share Tech Mono", monospace`,
                                                     fillColor: Cesium.Color.WHITE.withAlpha(0.9),
                                                     outlineColor: Cesium.Color.BLACK,
-                                                    outlineWidth: 2,
+                                                    outlineWidth: 3,
                                                     style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                                                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
                                                     horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-                                                    distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, maxDist)
+                                                    distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, maxDist),
+                                                    translucencyByDistance: new Cesium.NearFarScalar(maxDist * 0.8, 1.0, maxDist, 0.0),
+                                                    scaleByDistance: new Cesium.NearFarScalar(1.0e3, 1.2, maxDist, 0.6)
                                                 });
                                             }
                                         } else {
@@ -156,7 +181,8 @@ export class Terra5Globe {
                                                 style: Cesium.LabelStyle.FILL_AND_OUTLINE,
                                                 verticalOrigin: Cesium.VerticalOrigin.CENTER,
                                                 horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-                                                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 8000000)
+                                                distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 8000000),
+                                                translucencyByDistance: new Cesium.NearFarScalar(6000000, 1.0, 8000000, 0.0)
                                             });
                                         }
                                     }
