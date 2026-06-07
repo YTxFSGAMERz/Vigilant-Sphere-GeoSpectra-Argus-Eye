@@ -30,6 +30,19 @@ export class Terra5Globe {
         return dataUrl;
     }
 
+    // Creates a perfect Gold Crescent and Star SVG
+    _createIslamicIcon(color = '#FFD700') {
+        const key = `islamic-${color}`;
+        if (this._iconCache[key]) return this._iconCache[key];
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="36" height="36">
+            <path fill="${color}" d="M50 10 A40 40 0 1 0 90 50 A30 30 0 1 1 50 10 Z" />
+            <polygon fill="${color}" points="75,30 80,45 95,45 83,55 87,70 75,60 63,70 67,55 55,45 70,45" />
+        </svg>`;
+        const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        this._iconCache[key] = dataUrl;
+        return dataUrl;
+    }
+
     init() {
         this.viewer = new Cesium.Viewer(this.containerId, {
             baseLayerPicker: false,
@@ -229,6 +242,56 @@ export class Terra5Globe {
                     hasLabels: true,
                     isCities: true
                 });
+
+                // Load Global Grand Mosques
+                const mosquesDS = new Cesium.CustomDataSource('mosques_global');
+                const grandMosques = [
+                    { name: 'Masjid al-Haram', lat: 21.4225, lon: 39.8262 },
+                    { name: 'Al-Masjid an-Nabawi', lat: 24.4672, lon: 39.6111 },
+                    { name: 'Al-Aqsa Mosque', lat: 31.7761, lon: 35.2358 },
+                    { name: 'Sheikh Zayed Mosque', lat: 24.4125, lon: 54.4739 },
+                    { name: 'Sultan Qaboos Mosque', lat: 23.5838, lon: 58.3889 },
+                    { name: 'Imam Reza Shrine', lat: 36.2878, lon: 59.6155 },
+                    { name: 'Blue Mosque', lat: 41.0054, lon: 28.9768 },
+                    { name: 'Hagia Sophia', lat: 41.0086, lon: 28.9802 },
+                    { name: 'Faisal Mosque', lat: 33.7297, lon: 73.0375 },
+                    { name: 'Badshahi Mosque', lat: 31.5881, lon: 74.3113 },
+                    { name: 'Jama Masjid', lat: 28.6507, lon: 77.2334 },
+                    { name: 'Hassan II Mosque', lat: 33.6089, lon: -7.6328 },
+                    { name: 'Istiqlal Mosque', lat: -6.1700, lon: 106.8314 },
+                    { name: 'Great Mosque of Djenné', lat: 13.9054, lon: -4.5552 },
+                    { name: 'Grand Mosque of Kairouan', lat: 35.6814, lon: 10.1036 },
+                    { name: 'Sultan Salahuddin Mosque', lat: 3.0784, lon: 101.5204 }
+                ];
+                
+                const crescentIcon = this._createIslamicIcon('#FFD700'); // Gold
+
+                grandMosques.forEach((m, idx) => {
+                    mosquesDS.entities.add({
+                        id: `mosque-${idx}`,
+                        position: Cesium.Cartesian3.fromDegrees(m.lon, m.lat, 2000), // Elevated slightly
+                        billboard: {
+                            image: crescentIcon,
+                            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
+                            pixelOffset: new Cesium.Cartesian2(0, 0),
+                            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 15000000)
+                        },
+                        label: {
+                            text: m.name,
+                            font: 'bold 20px "Share Tech Mono", monospace',
+                            fillColor: Cesium.Color.fromCssColorString('#FFD700'),
+                            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                            outlineColor: Cesium.Color.BLACK,
+                            outlineWidth: 3,
+                            verticalOrigin: Cesium.VerticalOrigin.TOP,
+                            pixelOffset: new Cesium.Cartesian2(0, 5),
+                            distanceDisplayCondition: new Cesium.DistanceDisplayCondition(0, 15000000)
+                        }
+                    });
+                });
+                
+                this.viewer.dataSources.add(mosquesDS);
+
                 
                 // Load Custom City Markers with Arabic Translations
                 const citiesDS = new Cesium.CustomDataSource('cities_arabic');
