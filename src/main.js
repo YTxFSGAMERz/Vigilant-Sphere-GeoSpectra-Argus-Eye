@@ -12,9 +12,9 @@ class AppController {
     this.timers = {};
     this.state = {
       layers: {
-        flights: true, satellites: true, earthquakes: true, weather: true, cctv: true,
-        nuclear: false, military: false, conflicts: true,
-        hotspots: true, waterways: false, cables: false,
+        flights: false, satellites: false, earthquakes: false, weather: false, cctv: false,
+        nuclear: false, military: false, conflicts: false,
+        hotspots: false, waterways: false, cables: false,
         naturalEvents: false, wildfires: false, weatherAlerts: false,
         spaceports: false, economic: false
       },
@@ -97,6 +97,7 @@ class AppController {
 
   async init() {
     this.loadSettings();
+    this.syncAllButtonStates(); // Guarantee every button matches JS state before first interaction
 
     // Initialize Globe
     this.globe.init();
@@ -126,13 +127,8 @@ class AppController {
     setInterval(() => this.updateClock(), 1000);
     this.updateClock();
 
-    // Initial Data Fetch
+    // Initial Data Fetch — only fetches layers that are currently ON
     await this.fetchAllData();
-
-    // Sync layer visibility — data is loaded for counts, but hidden layers stay invisible
-    Object.entries(this.state.layers).forEach(([layer, visible]) => {
-      this.globe.setLayerVisibility(layer, visible);
-    });
 
     // Start Timers
     this.timers.flights = setInterval(() => this.fetchLayer('flights'), 15000);
@@ -359,26 +355,14 @@ class AppController {
   // --- Data Fetching ---
 
   async fetchAllData() {
-    this.ui.status.textContent = 'UPLINK ESTABLISHED... FETCHING ALL';
-    await Promise.all([
-      this.fetchLayer('flights'),
-      this.fetchLayer('satellites'),
-      this.fetchLayer('earthquakes'),
-      this.fetchLayer('weather'),
-      this.fetchLayer('cctv'),
-      this.fetchLayer('nuclear'),
-      this.fetchLayer('military'),
-      this.fetchLayer('conflicts'),
-      // Intel layers — fetch data so counts populate even when hidden
-      this.fetchLayer('hotspots'),
-      this.fetchLayer('waterways'),
-      this.fetchLayer('cables'),
-      this.fetchLayer('naturalEvents'),
-      this.fetchLayer('wildfires'),
-      this.fetchLayer('weatherAlerts'),
-      this.fetchLayer('spaceports'),
-      this.fetchLayer('economic')
-    ]);
+    this.ui.status.textContent = 'UPLINK ESTABLISHED... FETCHING ACTIVE LAYERS';
+    // Only fetch layers that are currently ON — off layers stay empty until the user enables them
+    const activeFetches = Object.entries(this.state.layers)
+      .filter(([, visible]) => visible)
+      .map(([layer]) => this.fetchLayer(layer));
+    if (activeFetches.length > 0) {
+      await Promise.all(activeFetches);
+    }
     this.ui.status.textContent = 'ALL SYSTEMS NOMINAL';
   }
 
@@ -444,6 +428,9 @@ class AppController {
         this.globe.updateEconomicCenters(MAP_DATA.ECONOMIC_CENTERS);
         if (this.ui.countEconomic) this.ui.countEconomic.textContent = MAP_DATA.ECONOMIC_CENTERS.length;
       }
+      // Re-enforce layer visibility after every fetch so timer-triggered re-fetches
+      // never make a user-disabled layer reappear on the globe.
+      this.globe.setLayerVisibility(layer, !!this.state.layers[layer]);
     } catch (e) {
       console.error(`Error fetching layer ${layer}:`, e);
       this.ui.status.textContent = `WARN: ${layer.toUpperCase()} UPLINK FAILED`;
@@ -680,29 +667,45 @@ ANALYZING SECTOR: <span class="text-cyan">${lat}°${latStr} ${lon}°${lonStr}</s
       const saved = localStorage.getItem('terra5_settings');
       if (saved) {
         const parsed = JSON.parse(saved);
-        this.state = { ...this.state, ...parsed };
-
-        // Initialize UI from state
-        if (!this.state.sidebarOpen) {
-          this.ui.sidebar.classList.add('collapsed');
-        }
-
-        ['flights', 'satellites', 'earthquakes', 'weather', 'cctv', 'nuclear', 'military', 'conflicts'].forEach(l => {
-          const btn = document.getElementById(`btn-${l}`);
-          if (btn) {
-            if (this.state.layers[l]) {
-              btn.classList.add('active');
-              btn.textContent = 'ON';
-            } else {
-              btn.classList.remove('active');
-              btn.textContent = 'OFF';
+        // Deep-merge only known layer keys so corrupt or outdated saves can't
+        // inject unexpected state or overwrite new layer defaults.
+        if (parsed.layers && typeof parsed.layers === 'object') {
+          Object.keys(this.state.layers).forEach(k => {
+            if (typeof parsed.layers[k] === 'boolean') {
+              this.state.layers[k] = parsed.layers[k];
             }
-          }
-        });
+          });
+        }
+        if (typeof parsed.mode === 'string')        this.state.mode        = parsed.mode;
+        if (typeof parsed.sidebarOpen === 'boolean') this.state.sidebarOpen = parsed.sidebarOpen;
+        if (parsed.camera && typeof parsed.camera === 'object') this.state.camera = parsed.camera;
+      }
+      // Sync sidebar collapse state
+      if (!this.state.sidebarOpen) {
+        this.ui.sidebar.classList.add('collapsed');
       }
     } catch (e) {
-      console.error("Failed to load settings from localStorage", e);
+      console.error('Failed to load settings from localStorage', e);
+      // Clear corrupt data so next load starts fresh
+      try { localStorage.removeItem('terra5_settings'); } catch (_) {}
     }
+  }
+
+  // Syncs every toggle button's text and active-class to the current JS state.
+  // Called once after loadSettings() to guarantee visual/state parity before
+  // the user can click anything — this is the root fix for the double-click bug.
+  syncAllButtonStates() {
+    Object.entries(this.state.layers).forEach(([layer, visible]) => {
+      const btn = document.getElementById(`btn-${layer}`);
+      if (!btn) return;
+      if (visible) {
+        btn.classList.add('active');
+        btn.textContent = 'ON';
+      } else {
+        btn.classList.remove('active');
+        btn.textContent = 'OFF';
+      }
+    });
   }
 
   saveSettings() {
