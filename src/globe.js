@@ -12,6 +12,16 @@ export class Terra5Globe {
         this._iconCache = {};
     }
 
+    _isValidDegreesArray(arr) {
+        if (!Array.isArray(arr) || arr.length < 4 || arr.length % 2 !== 0) return false;
+        for (let i = 0; i < arr.length; i++) {
+            const val = Number(arr[i]);
+            if (isNaN(val) || !isFinite(val)) return false;
+        }
+        return true;
+    }
+
+
     // Render an emoji onto a canvas and return as data URL for billboard use
     _makeIcon(emoji, size = 48) {
         const key = `${emoji}-${size}`;
@@ -102,14 +112,24 @@ export class Terra5Globe {
                             const addRing = (ring) => {
                                 const flatCoords = [];
                                 for (let i = 0; i < ring.length; i++) {
-                                    flatCoords.push(ring[i][0], ring[i][1]);
+                                    if (ring[i] && ring[i].length >= 2) {
+                                        const lon = Number(ring[i][0]);
+                                        const lat = Number(ring[i][1]);
+                                        if (!isNaN(lon) && isFinite(lon) && !isNaN(lat) && isFinite(lat)) {
+                                            flatCoords.push(lon, lat);
+                                        }
+                                    }
                                 }
-                                if (flatCoords.length >= 4 && material) {
-                                    polylineCollection.add({
-                                        positions: Cesium.Cartesian3.fromDegreesArray(flatCoords),
-                                        width: options.width || 2,
-                                        material: material
-                                    });
+                                if (flatCoords.length >= 4 && flatCoords.length % 2 === 0 && material) {
+                                    try {
+                                        polylineCollection.add({
+                                            positions: Cesium.Cartesian3.fromDegreesArray(flatCoords),
+                                            width: options.width || 2,
+                                            material: material
+                                        });
+                                    } catch (err) {
+                                        console.warn("Failed to add polyline to primitive collection", err);
+                                    }
                                 }
                             };
 
@@ -129,16 +149,29 @@ export class Terra5Globe {
                                 if (name && !labeledNames.has(name)) {
                                     let center;
                                     if (f.properties.LABEL_X !== undefined && f.properties.LABEL_Y !== undefined) {
-                                        center = Cesium.Cartesian3.fromDegrees(f.properties.LABEL_X, f.properties.LABEL_Y);
+                                        const lx = Number(f.properties.LABEL_X);
+                                        const ly = Number(f.properties.LABEL_Y);
+                                        if (!isNaN(lx) && isFinite(lx) && !isNaN(ly) && isFinite(ly)) {
+                                            center = Cesium.Cartesian3.fromDegrees(lx, ly);
+                                        }
                                     } else if (f.geometry.type === 'Point') {
-                                        center = Cesium.Cartesian3.fromDegrees(f.geometry.coordinates[0], f.geometry.coordinates[1]);
+                                        const lon = Number(f.geometry.coordinates[0]);
+                                        const lat = Number(f.geometry.coordinates[1]);
+                                        if (!isNaN(lon) && isFinite(lon) && !isNaN(lat) && isFinite(lat)) {
+                                            center = Cesium.Cartesian3.fromDegrees(lon, lat);
+                                        }
                                     } else if (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon') {
                                         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
                                         const updateBounds = (ring) => {
                                             for (let i = 0; i < ring.length; i++) {
-                                                const x = ring[i][0], y = ring[i][1];
-                                                if (x < minX) minX = x; if (x > maxX) maxX = x;
-                                                if (y < minY) minY = y; if (y > maxY) maxY = y;
+                                                if (ring[i] && ring[i].length >= 2) {
+                                                    const x = Number(ring[i][0]);
+                                                    const y = Number(ring[i][1]);
+                                                    if (!isNaN(x) && isFinite(x) && !isNaN(y) && isFinite(y)) {
+                                                        if (x < minX) minX = x; if (x > maxX) maxX = x;
+                                                        if (y < minY) minY = y; if (y > maxY) maxY = y;
+                                                    }
+                                                }
                                             }
                                         };
                                         if (f.geometry.type === 'Polygon') {
@@ -146,10 +179,16 @@ export class Terra5Globe {
                                         } else {
                                             f.geometry.coordinates.forEach(polygon => polygon.forEach(updateBounds));
                                         }
-                                        center = Cesium.Cartesian3.fromDegrees((minX + maxX) / 2, (minY + maxY) / 2);
+                                        if (minX !== Infinity && minY !== Infinity) {
+                                            const cx = (minX + maxX) / 2;
+                                            const cy = (minY + maxY) / 2;
+                                            if (!isNaN(cx) && isFinite(cx) && !isNaN(cy) && isFinite(cy)) {
+                                                center = Cesium.Cartesian3.fromDegrees(cx, cy);
+                                            }
+                                        }
                                     }
                                     
-                                    if (center) {
+                                    if (center && !isNaN(center.x) && !isNaN(center.y) && !isNaN(center.z)) {
                                         labeledNames.add(name);
                                         
                                         if (options.isCities) {
@@ -210,6 +249,7 @@ export class Terra5Globe {
                                 }
                             }
                         });
+
 
                         this.viewer.scene.primitives.add(polylineCollection);
                         this.viewer.scene.primitives.add(labelCollection);
@@ -444,17 +484,18 @@ export class Terra5Globe {
         ds.entities.removeAll();
 
         flights.forEach(flight => {
-            if (!flight.longitude || !flight.latitude) return;
+            const lon = Number(flight.longitude);
+            const lat = Number(flight.latitude);
+            if (isNaN(lon) || !isFinite(lon) || isNaN(lat) || !isFinite(lat)) return;
+
+            const alt = typeof flight.altitude === 'number' && !isNaN(flight.altitude) && isFinite(flight.altitude) ? flight.altitude : 0;
+            const heading = typeof flight.heading === 'number' && !isNaN(flight.heading) && isFinite(flight.heading) ? flight.heading : 0;
 
             ds.entities.add({
                 id: flight.icao24,
-                position: Cesium.Cartesian3.fromDegrees(
-                    flight.longitude,
-                    flight.latitude,
-                    (flight.altitude || 0) + 100
-                ),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat, alt + 100),
                 billboard: {
-                    image: this._createAircraftSVG(flight.heading || 0),
+                    image: this._createAircraftSVG(heading),
                     width: 24,
                     height: 24,
                     color: Cesium.Color.fromCssColorString('#00d4aa')
@@ -480,15 +521,15 @@ export class Terra5Globe {
         const icon = this._makeIcon('🛰️', 36);
 
         satellites.forEach(sat => {
-            if (!sat.longitude || !sat.latitude) return;
+            const lon = Number(sat.longitude);
+            const lat = Number(sat.latitude);
+            if (isNaN(lon) || !isFinite(lon) || isNaN(lat) || !isFinite(lat)) return;
+
+            const alt = typeof sat.altitude === 'number' && !isNaN(sat.altitude) && isFinite(sat.altitude) ? sat.altitude : 400;
 
             ds.entities.add({
                 id: `sat-${sat.noradId}`,
-                position: Cesium.Cartesian3.fromDegrees(
-                    sat.longitude,
-                    sat.latitude,
-                    (sat.altitude || 400) * 1000
-                ),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat, alt * 1000),
                 billboard: {
                     image: icon, width: 20, height: 20,
                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
@@ -520,12 +561,16 @@ export class Terra5Globe {
         ];
 
         weatherStations.forEach(wx => {
-            const lvl = wx.precipitationLevel || 0;
+            const lon = Number(wx.longitude);
+            const lat = Number(wx.latitude);
+            if (isNaN(lon) || !isFinite(lon) || isNaN(lat) || !isFinite(lat)) return;
+
+            const lvl = typeof wx.precipitationLevel === 'number' && !isNaN(wx.precipitationLevel) && isFinite(wx.precipitationLevel) ? wx.precipitationLevel : 0;
             const emoji = wxEmojis[lvl] || '🌡️';
             const icon = this._makeIcon(emoji, 36);
             ds.entities.add({
                 id: wx.id,
-                position: Cesium.Cartesian3.fromDegrees(wx.longitude, wx.latitude),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
                 billboard: {
                     image: icon, width: 20, height: 20,
                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
@@ -548,9 +593,13 @@ export class Terra5Globe {
         ds.entities.removeAll();
 
         cameras.forEach(cam => {
+            const lon = Number(cam.longitude);
+            const lat = Number(cam.latitude);
+            if (isNaN(lon) || !isFinite(lon) || isNaN(lat) || !isFinite(lat)) return;
+
             ds.entities.add({
                 id: cam.id,
-                position: Cesium.Cartesian3.fromDegrees(cam.longitude, cam.latitude),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
                 billboard: {
                     image: this._createCCTVSVG(),
                     width: 20,
@@ -574,12 +623,17 @@ export class Terra5Globe {
         ds.entities.removeAll();
 
         earthquakes.forEach(eq => {
-            if (!eq.longitude || !eq.latitude) return;
-            const size = Math.max(10000, eq.magnitude * 20000);
+            const lon = Number(eq.longitude);
+            const lat = Number(eq.latitude);
+            if (isNaN(lon) || !isFinite(lon) || isNaN(lat) || !isFinite(lat)) return;
+
+            const mag = typeof eq.magnitude === 'number' && !isNaN(eq.magnitude) && isFinite(eq.magnitude) ? eq.magnitude : 0;
+            const size = Math.max(10000, mag * 20000);
+            if (isNaN(size) || size <= 0 || !isFinite(size)) return;
 
             ds.entities.add({
                 id: `eq-${eq.id}`,
-                position: Cesium.Cartesian3.fromDegrees(eq.longitude, eq.latitude),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
                 ellipse: {
                     semiMinorAxis: size,
                     semiMajorAxis: size,
@@ -589,7 +643,7 @@ export class Terra5Globe {
                     outlineWidth: 2
                 },
                 label: {
-                    text: `M${eq.magnitude.toFixed(1)}`,
+                    text: `M${mag.toFixed(1)}`,
                     font: '11px "Share Tech Mono", monospace',
                     fillColor: Cesium.Color.fromCssColorString('#ff4444'),
                     pixelOffset: new Cesium.Cartesian2(0, -20),
@@ -600,14 +654,19 @@ export class Terra5Globe {
         });
     }
 
+
     updateNuclear(facilities) {
         const ds = this.dataSources.nuclear;
         ds.entities.removeAll();
         const icon = this._makeIcon('☢️', 48);
         facilities.forEach(fac => {
+            const lon = Number(fac.lon);
+            const lat = Number(fac.lat);
+            if (isNaN(lon) || !isFinite(lon) || isNaN(lat) || !isFinite(lat)) return;
+
             ds.entities.add({
                 id: `nuc-${fac.id}`,
-                position: Cesium.Cartesian3.fromDegrees(fac.lon, fac.lat),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
                 billboard: {
                     image: icon, width: 28, height: 28,
                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
@@ -631,9 +690,13 @@ export class Terra5Globe {
         ds.entities.removeAll();
         const icon = this._makeIcon('🏛️', 44);
         bases.forEach(base => {
+            const lon = Number(base.lon);
+            const lat = Number(base.lat);
+            if (isNaN(lon) || !isFinite(lon) || isNaN(lat) || !isFinite(lat)) return;
+
             ds.entities.add({
                 id: `mil-${base.id}`,
-                position: Cesium.Cartesian3.fromDegrees(base.lon, base.lat),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
                 billboard: {
                     image: icon, width: 24, height: 24,
                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
@@ -657,7 +720,14 @@ export class Terra5Globe {
         ds.entities.removeAll();
         zones.forEach(zone => {
             if (!zone.coords || zone.coords.length < 3) return;
-            const positions = Cesium.Cartesian3.fromDegreesArray(zone.coords.flat());
+            const flat = zone.coords.flat();
+            if (!this._isValidDegreesArray(flat)) return;
+            const positions = Cesium.Cartesian3.fromDegreesArray(flat);
+
+            const firstLon = Number(zone.coords[0][0]);
+            const firstLat = Number(zone.coords[0][1]);
+            if (isNaN(firstLon) || !isFinite(firstLon) || isNaN(firstLat) || !isFinite(firstLat)) return;
+
             ds.entities.add({
                 id: `conf-${zone.id}`,
                 polygon: {
@@ -667,7 +737,7 @@ export class Terra5Globe {
                     outlineColor: Cesium.Color.fromCssColorString('#ff0044'),
                     outlineWidth: 2
                 },
-                position: Cesium.Cartesian3.fromDegrees(zone.coords[0][0], zone.coords[0][1]),
+                position: Cesium.Cartesian3.fromDegrees(firstLon, firstLat),
                 label: {
                     text: zone.name.toUpperCase(),
                     font: '12px "Share Tech Mono", monospace',
@@ -687,9 +757,13 @@ export class Terra5Globe {
         ds.entities.removeAll();
         const icon = this._makeIcon('⚓', 48);
         waterways.forEach(w => {
+            const lon = Number(w.lon);
+            const lat = Number(w.lat);
+            if (isNaN(lon) || !isFinite(lon) || isNaN(lat) || !isFinite(lat)) return;
+
             ds.entities.add({
                 id: `ww-${w.id}`,
-                position: Cesium.Cartesian3.fromDegrees(w.lon, w.lat),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
                 billboard: {
                     image: icon, width: 26, height: 26,
                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
@@ -714,11 +788,15 @@ export class Terra5Globe {
         ds.entities.removeAll();
         const colors = { high: '#ff0044', elevated: '#ff8800', medium: '#ffcc00', low: '#44ff88' };
         hotspots.forEach(h => {
+            const lon = Number(h.lon);
+            const lat = Number(h.lat);
+            if (isNaN(lon) || !isFinite(lon) || isNaN(lat) || !isFinite(lat)) return;
+
             const c = colors[h.level] || '#ffcc00';
             const icon = this._makeIcon('🎯', 48);
             ds.entities.add({
                 id: `hs-${h.id}`,
-                position: Cesium.Cartesian3.fromDegrees(h.lon, h.lat),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
                 billboard: {
                     image: icon, width: 28, height: 28,
                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
@@ -750,7 +828,13 @@ export class Terra5Globe {
         const icon = this._makeIcon('🔌', 40);
         cables.forEach(cable => {
             if (!cable.points || cable.points.length < 2) return;
-            const degs = cable.points.flatMap(p => [p[0], p[1]]);
+            const degs = cable.points.flatMap(p => [Number(p[0]), Number(p[1])]);
+            if (!this._isValidDegreesArray(degs)) return;
+
+            const firstLon = Number(cable.points[0][0]);
+            const firstLat = Number(cable.points[0][1]);
+            if (isNaN(firstLon) || !isFinite(firstLon) || isNaN(firstLat) || !isFinite(firstLat)) return;
+
             ds.entities.add({
                 id: `cable-${cable.id}`,
                 polyline: {
@@ -759,7 +843,7 @@ export class Terra5Globe {
                     material: new Cesium.PolylineGlowMaterialProperty({ glowPower: 0.3, color: Cesium.Color.fromCssColorString('#00ccff') }),
                     clampToGround: true
                 },
-                position: Cesium.Cartesian3.fromDegrees(cable.points[0][0], cable.points[0][1]),
+                position: Cesium.Cartesian3.fromDegrees(firstLon, firstLat),
                 billboard: {
                     image: icon, width: 22, height: 22,
                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
@@ -785,12 +869,16 @@ export class Terra5Globe {
         const catEmojis = { volcanoes: '🌋', severeStorms: '🌀', wildfires: '🔥', seaLakeIce: '🧊' };
         const catColors = { volcanoes: '#ff4400', severeStorms: '#8844ff', wildfires: '#ff6600', seaLakeIce: '#44ddff' };
         events.forEach(e => {
+            const lon = Number(e.longitude);
+            const lat = Number(e.latitude);
+            if (isNaN(lon) || !isFinite(lon) || isNaN(lat) || !isFinite(lat)) return;
+
             const emoji = catEmojis[e.categoryId] || '🌍';
             const col = catColors[e.categoryId] || '#ff8844';
             const icon = this._makeIcon(emoji, 44);
             ds.entities.add({
                 id: `neo-${e.id}`,
-                position: Cesium.Cartesian3.fromDegrees(e.longitude, e.latitude),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
                 billboard: {
                     image: icon, width: 24, height: 24,
                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
@@ -809,15 +897,20 @@ export class Terra5Globe {
         });
     }
 
+
     // ═══ WILDFIRES (NASA FIRMS) ═══
     updateWildfires(fires) {
         const ds = this.dataSources.wildfires;
         ds.entities.removeAll();
         const icon = this._makeIcon('🔥', 36);
         fires.forEach((f, i) => {
+            const lon = Number(f.longitude);
+            const lat = Number(f.latitude);
+            if (isNaN(lon) || !isFinite(lon) || isNaN(lat) || !isFinite(lat)) return;
+
             ds.entities.add({
                 id: `fire-${i}`,
-                position: Cesium.Cartesian3.fromDegrees(f.longitude, f.latitude),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
                 billboard: {
                     image: icon, width: 16, height: 16,
                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
@@ -835,12 +928,16 @@ export class Terra5Globe {
         const sevColors = { Extreme: '#ff0044', Severe: '#ff6600', Moderate: '#ffcc00', Minor: '#44aaff' };
         alerts.forEach(a => {
             if (!a.centroid) return;
+            const lon = Number(a.centroid[0]);
+            const lat = Number(a.centroid[1]);
+            if (isNaN(lon) || !isFinite(lon) || isNaN(lat) || !isFinite(lat)) return;
+
             const emoji = sevEmojis[a.severity] || '🌦️';
             const col = sevColors[a.severity] || '#888';
             const icon = this._makeIcon(emoji, 40);
             ds.entities.add({
                 id: `wx-${a.id}`,
-                position: Cesium.Cartesian3.fromDegrees(a.centroid[0], a.centroid[1]),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
                 billboard: {
                     image: icon, width: 20, height: 20,
                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
@@ -865,9 +962,13 @@ export class Terra5Globe {
         ds.entities.removeAll();
         const icon = this._makeIcon('🚀', 48);
         spaceports.forEach(sp => {
+            const lon = Number(sp.lon);
+            const lat = Number(sp.lat);
+            if (isNaN(lon) || !isFinite(lon) || isNaN(lat) || !isFinite(lat)) return;
+
             ds.entities.add({
                 id: `sp-${sp.id}`,
-                position: Cesium.Cartesian3.fromDegrees(sp.lon, sp.lat),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
                 billboard: {
                     image: icon, width: 26, height: 26,
                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
@@ -892,9 +993,13 @@ export class Terra5Globe {
         ds.entities.removeAll();
         const icon = this._makeIcon('💰', 48);
         centers.forEach(ec => {
+            const lon = Number(ec.lon);
+            const lat = Number(ec.lat);
+            if (isNaN(lon) || !isFinite(lon) || isNaN(lat) || !isFinite(lat)) return;
+
             ds.entities.add({
                 id: `ec-${ec.id}`,
-                position: Cesium.Cartesian3.fromDegrees(ec.lon, ec.lat),
+                position: Cesium.Cartesian3.fromDegrees(lon, lat),
                 billboard: {
                     image: icon, width: 26, height: 26,
                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
@@ -912,6 +1017,7 @@ export class Terra5Globe {
             });
         });
     }
+
 
 
     setLayerVisibility(layer, visible) {
