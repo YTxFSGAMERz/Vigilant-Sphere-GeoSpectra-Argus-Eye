@@ -310,14 +310,14 @@ export class APIService {
         return [];
     }
 
-    // ═══════════════════════════════════════════════
-    //  HELPER: Calculate centroid of coordinate array
-    // ═══════════════════════════════════════════════
     static _centroid(coords) {
-        if (!coords.length) return null;
-        const sum = coords.reduce((a, [lon, lat]) => [a[0] + lon, a[1] + lat], [0, 0]);
-        return [sum[0] / coords.length, sum[1] / coords.length];
+        if (!coords || !coords.length) return null;
+        const validCoords = coords.filter(c => c && typeof c[0] === 'number' && typeof c[1] === 'number' && !isNaN(c[0]) && !isNaN(c[1]) && isFinite(c[0]) && isFinite(c[1]));
+        if (!validCoords.length) return null;
+        const sum = validCoords.reduce((a, [lon, lat]) => [a[0] + lon, a[1] + lat], [0, 0]);
+        return [sum[0] / validCoords.length, sum[1] / validCoords.length];
     }
+
 
     // ═══════════════════════════════════════════════
     //  HELPER: Extract image from RSS item
